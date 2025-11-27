@@ -395,7 +395,7 @@ build_rga() {
     -Dlibdrm=false \
     -Dlibrga_demo=false
   
-  meson configure build
+  meson configure build --no-pager
   ninja -C build -j"$NUM_JOBS" install
   
   export PKG_CONFIG_PATH="$PREFIX_DIR/lib/pkgconfig:$PREFIX_DIR/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
