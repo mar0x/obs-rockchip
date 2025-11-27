@@ -313,6 +313,13 @@ clone_repos() {
       rm -rf "$FFMPEG_SRC_DIR"
       git clone --depth=1 --branch="$FFMPEG_BRANCH" \
         https://github.com/nyanmisaka/ffmpeg-rockchip.git "$FFMPEG_SRC_DIR"
+
+      if ! [ -f "$FFMPEG_SRC_DIR/VERSION" ]; then
+        # Let's help ffmpeg to discover it's version
+        pushd "$FFMPEG_SRC_DIR"
+        echo "$FFMPEG_BRANCH-g$(git describe --tags --always)" > VERSION
+        popd
+      fi
     ) &
     pids+=($!)
   fi
