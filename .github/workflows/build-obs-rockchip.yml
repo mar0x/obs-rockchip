@@ -6,7 +6,7 @@ on:
       obs_version:
         description: "OBS Studio tag/version (e.g. 32.0.0)"
         required: false
-        default: "32.0.0"
+        default: "32.0.2"
         type: string
       ffmpeg_branch:
         description: "ffmpeg-rockchip branch/tag (e.g. 7.1)"
@@ -26,7 +26,7 @@ on:
 
 jobs:
   build:
-    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
     env:
