@@ -29,6 +29,7 @@ CEF_URL="https://cdn-fastly.obsproject.com/downloads/cef_binary_6533_linux_aarch
 # Source control settings
 FFMPEG_BRANCH=${FFMPEG_BRANCH:-"6.1"}
 OBS_VERSION=${OBS_VERSION:-"32.0.2"}
+OBS_REPO=${OBS_REPO:-"https://github.com/obsproject/obs-studio.git"}
 
 mkdir -p "$PREFIX_DIR" "$BUILD_DIR"
 
@@ -77,6 +78,28 @@ install_deps() {
         git zsh libtool meson texinfo wget yasm zlib1g-dev checkinstall \
         fakeroot debhelper devscripts equivs
       
+      if [[ "$FFMPEG_BRANCH" == "-" ]]; then
+      sudo apt-get install -y --no-install-recommends \
+         debhelper-compat \
+         dh-sequence-python3 \
+         dh-sequence-scour \
+         dpkg-dev \
+         gir1.2-rsvg-2.0 \
+         libcurl4-gnutls-dev \
+         libdbus-1-dev \
+         libegl-dev \
+         libffmpeg-nvenc-dev \
+         libfreetype-dev \
+         libopengl-dev \
+         libva-dev \
+         libx264-dev \
+         libxcb-xinput-dev \
+         libxkbcommon-dev \
+         ninja-build \
+         python3-docutils \
+         python3-gi-cairo \
+
+      else
       # FFmpeg dependencies (from FFmpeg Ubuntu guide)
       sudo apt-get install -y --no-install-recommends \
         libass-dev libfreetype6-dev libgnutls28-dev libmp3lame-dev \
@@ -87,6 +110,7 @@ install_deps() {
       # Additional FFmpeg libraries for Ubuntu 20.04+
       sudo apt-get install -y --no-install-recommends \
         libunistring-dev libaom-dev libdav1d-dev || true
+      fi
       
       # OBS Studio specific dependencies
       sudo apt-get install -y --no-install-recommends \
@@ -302,12 +326,13 @@ clone_repos() {
       rm -rf "$OBS_SRC_DIR"
       git clone --depth=1 --branch="$OBS_VERSION" \
         --recurse-submodules --shallow-submodules \
-        https://github.com/obsproject/obs-studio.git "$OBS_SRC_DIR"
+        "$OBS_REPO" "$OBS_SRC_DIR"
     ) &
     pids+=($!)
   fi
   
   # FFmpeg Rockchip
+  if [[ "$FFMPEG_BRANCH" != "-" ]]; then
   if [[ ! -d "$FFMPEG_SRC_DIR/.git" ]] || ! (cd "$FFMPEG_SRC_DIR" && [[ "$(git branch --show-current 2>/dev/null || echo unknown)" == "$FFMPEG_BRANCH" ]]); then
     (
       rm -rf "$FFMPEG_SRC_DIR"
@@ -340,6 +365,7 @@ clone_repos() {
         https://github.com/nyanmisaka/rk-mirrors.git "$RGA_SRC_DIR"
     ) &
     pids+=($!)
+  fi
   fi
   
   # Wait for all clones to complete
@@ -471,6 +497,14 @@ build_obs() {
   if [[ -f debian/control ]]; then
     sudo mk-build-deps -ir -t "apt-get -y --no-install-recommends" debian/control
   fi
+
+  if [[ -f debian/changelog ]]; then
+    cl_version=`dpkg-parsechangelog -S Version`
+    echo "cl_version=$cl_version"
+    if [[ -n "$cl_version" ]]; then
+      OBS_VERSION_OVERRIDE='"OBS_VERSION_OVERRIDE": "'$cl_version'",'
+    fi
+  fi
   
   # Verify CEF is ready (pre-compiled wrapper)
   if [[ ! -f "$CEF_ROOT_DIR/build/libcef_dll_wrapper/libcef_dll_wrapper.a" ]]; then
@@ -478,6 +512,10 @@ build_obs() {
     exit 1
   fi
   
+  if [[ "$FFMPEG_BRANCH" != "-" ]]; then
+    FFMPEG_ROOT='"FFMPEG_ROOT": "'$PREFIX_DIR'",'
+  fi
+
   # Create optimized preset for CI with CEF
   tee CMakeUserPresets.json > /dev/null << EOF
 {
@@ -491,8 +529,9 @@ build_obs() {
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "$BUILD_TYPE",
         "CMAKE_C_FLAGS": "-D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE",
-        "CMAKE_CXX_FLAGS": "-D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE", 
-        "FFMPEG_ROOT": "$PREFIX_DIR",
+        "CMAKE_CXX_FLAGS": "-D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE",
+        ${OBS_VERSION_OVERRIDE:-}
+        ${FFMPEG_ROOT:-}
         "CMAKE_PREFIX_PATH": "$PREFIX_DIR",
         "CEF_ROOT_DIR": "$CEF_ROOT_DIR",
         "UNIX_STRUCTURE": true,
@@ -570,7 +609,7 @@ package_artifacts() {
 Build Information:
 - Date: $(date)
 - OBS Version: $OBS_VERSION
-- FFmpeg Branch: $FFMPEG_BRANCH  
+- FFmpeg Branch: $FFMPEG_BRANCH
 - CEF Version: $CEF_VERSION (pre-compiled from OBS Project)
 - CEF Architecture: $CEF_ARCH (ARM64 only)
 - Build Type: $BUILD_TYPE
@@ -601,9 +640,13 @@ main() {
   install_deps
   clone_repos
   download_and_setup_cef
-  build_mpp
-  build_rga  
-  build_ffmpeg_rockchip
+
+  if [[ "$FFMPEG_BRANCH" != "-" ]]; then
+    build_mpp
+    build_rga
+    build_ffmpeg_rockchip
+  fi
+
   build_obs
   package_artifacts
   

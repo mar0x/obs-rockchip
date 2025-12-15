@@ -8,6 +8,11 @@ on:
         required: false
         default: "32.0.2"
         type: string
+      obs_repo:
+        description: "OBS Studio source repository URL"
+        required: false
+        default: "https://github.com/obsproject/obs-studio.git"
+        type: string
       ffmpeg_branch:
         description: "ffmpeg-rockchip branch/tag (e.g. 7.1)"
         required: false
@@ -31,6 +36,7 @@ jobs:
       contents: write
     env:
       OBS_VERSION: ${{ inputs.obs_version }}
+      OBS_REPO: ${{ inputs.obs_repo }}
       FFMPEG_BRANCH: ${{ inputs.ffmpeg_branch }}
       CEF_VERSION: ${{ inputs.cef_version }}
     steps:
@@ -77,6 +83,7 @@ jobs:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
           USE_CCACHE: ${{ inputs.ignore_cache && '0' || '1' }}
           OBS_VERSION: ${{ inputs.obs_version }}
+          OBS_REPO: ${{ inputs.obs_repo }}
           FFMPEG_BRANCH: ${{ inputs.ffmpeg_branch }}
           CEF_VERSION: ${{ inputs.cef_version }}
         run: scripts/build-obs-rockchip.sh
